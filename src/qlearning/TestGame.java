@@ -2,7 +2,7 @@ package qlearning;
 
 import game.Game;
 import qlearning.AI.QLearningAI;
-import qlearning.AI.Utils;
+import qlearning.util.Utils;
 import util.AI;
 import util.Context;
 import util.GameLoader;
@@ -19,10 +19,6 @@ public class TestGame {
 
     final Game ticTacToe = GameLoader.loadGameFromFile(new File("resources/games/tictactoe.lud"));
 
-    // TODO: Ensure to rewrite the QLearningAI without using the tuples. A 3D int[] should suffice
-    // TODO: Can also remove the need of passing around the set of moves. All that is needed is the
-    // TODO: size of the number of moves.
-
     // TODO: fix the AI for Amazons. Currently throwing some random Null Pointer Exception
     // TODO: Seems tough to debug..?
 
@@ -32,18 +28,18 @@ public class TestGame {
         final Context context = new Context(ticTacToe, trial);
 
         final List<AI> ais = new ArrayList<>();
-//        QLearningAI qLearningAI = new QLearningAI(0.01, 0.80, 0.10);
-        QLearningAI qLearningAI = new QLearningAI(0.01, 0.80, 0.10, "Q-Amazons-0-0-1.bin");
+        QLearningAI qLearningAI = new QLearningAI(0.5, 0.80, 0.20);
+//        QLearningAI qLearningAI = new QLearningAI(0.01, 0.80, 0.10, "Q-test_update-0-0-1.bin");
         ais.add(null);
         ais.add(qLearningAI);
         ais.add(new RandomAI());
 
-        final int NUM_TRIALS = 1_000;
+        final int NUM_TRIALS = 1_000_000;
 
         for (int i = 0; i < NUM_TRIALS; ++i)
         {
             ticTacToe.start(context);
-            if ((i+1) % 100_000 == 0)
+            if ((i+1) % (NUM_TRIALS/10) == 0)
                 System.out.println("Game #" + (i+1));
 
             // Initialize the AIs
@@ -59,13 +55,6 @@ public class TestGame {
                 // In the case of this loop, we will always assign a reward of 0, and handle the winning vs
                 // losing below.
             }
-
-//            for(int p = 1; p <= ticTacToe.players().count(); ++p) {
-//                AI ai = ais.get(context.state().playerToAgent(p));
-//                if (ai == qLearningAI) {
-//                    qLearningAI.updateQ(ticTacToe, context, 0);
-//                }
-//            }
 
             final double[] ranking = trial.ranking();
 
@@ -88,7 +77,7 @@ public class TestGame {
                         draws++;
                     }
 
-                    qLearningAI.updateQBackwards(context.game(), context, reward);
+                    qLearningAI.updateQBackwards(reward);
                 }
             }
 

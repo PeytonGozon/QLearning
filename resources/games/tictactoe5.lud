@@ -1,0 +1,14 @@
+(game "Tic-Tac-Toe"
+    (players 2)
+    (equipment
+        {
+            (board (square 4))
+            (piece "Cross" P1)
+            (piece "Disc" P2)
+        }
+    )
+    (rules
+        (play (move Add (to (sites Empty))))
+        (end (if (is Line 3) (result Mover Win)))
+    )
+)

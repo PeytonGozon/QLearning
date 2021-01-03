@@ -2,11 +2,13 @@ package qlearning.AI;
 
 import game.Game;
 import main.collections.FastArrayList;
-import qlearning.Tuple;
+import qlearning.util.Tuple;
+import qlearning.util.Utils;
 import util.AI;
 import util.Context;
 import util.Move;
 
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -18,7 +20,8 @@ public class QLearningAI extends AI {
     protected int player = -1;
 
     // Learning rate, discount rate, epsilon-greedy policy parameter
-    private final double alpha, gamma, epsilon;
+    private final double alpha, gamma;
+    private double epsilon;
 
     // Whether for the AI to learn or not.
     private final boolean learn;
@@ -28,8 +31,12 @@ public class QLearningAI extends AI {
 
     // Move History (for this episode)
     // Stores a list of Board Hashes, Move Made.
-//    private static volatile ConcurrentLinkedQueue<Tuple<Integer, Integer, FastArrayList<Move>>> moveHistory = null;
-    private static volatile LinkedBlockingDeque<Tuple<Integer, Integer, FastArrayList<Move>>> moveHistory = null;
+    // Storage order: board hashcode, the move choice made, and the number of legal moves at the time.
+    private static volatile LinkedBlockingDeque<Tuple<Integer, Integer, Integer>> moveHistory = null;
+
+    public QLearningAI() {
+        this(0.01, 0.80, 0, "Q-AI-0 0 1.bin", false);
+    }
 
     /**
      * Constructor (for creating a new agent)
@@ -108,7 +115,7 @@ public class QLearningAI extends AI {
 
         final int randomLegalMove = ThreadLocalRandom.current().nextInt(numLegalMoves);
 
-        assert randomLegalMove < legalMoves.size() : "Invalid move size";
+        assert randomLegalMove < numLegalMoves : "Invalid move size";
 
         // Determine the board's hash code
         final int boardHashCode = Utils.boardToHashcode(context);
@@ -127,12 +134,16 @@ public class QLearningAI extends AI {
             // choose the random move.
 
             // Determine the possible Q values from this state.
-            final double[] QValues = this.getQValues(legalMoves, boardHashCode);
+            final double[] QValues = this.getQValues(boardHashCode, numLegalMoves);
 
             // Find the arg max Q value. The maximum value's index is our optimal move choice.
             final int maxQIndex = argmax(QValues);
 
-            moveChoice = QValues[maxQIndex] > 0 ? maxQIndex : randomLegalMove;
+            if(maxQIndex == -1) {
+                System.out.println("maxQIndex: -1" + Arrays.toString(QValues));
+            }
+
+            moveChoice = (maxQIndex >= 0) && (QValues[maxQIndex] > 0) ? maxQIndex : randomLegalMove;
         }
 
         // Finally, return the optimal move, as defined by the policy.
@@ -143,12 +154,15 @@ public class QLearningAI extends AI {
 //        assert moveChoice < legalMoves.size();
 
         // Put the moves in backwards order to the Queue, so that it is in FILO order.
-        moveHistory.addFirst(new Tuple<>(boardHashCode, moveChoice, legalMoves));
+        moveHistory.addFirst(new Tuple<>(boardHashCode, moveChoice, numLegalMoves));
 
         return selectedMove;
     }
 
-    public void updateQBackwards(final Game game, final Context context, double reward) {
+    public void updateQBackwards(double reward) {
+        // Only learn if we're supposed to.
+        if (!this.learn)
+            return;
         // Implement a backwards Queue that allows for the whole game to be played
         // And then, once the game is over, retroactively go down the queue to apply
         // Q updates in place. This way, a whole game is simulated at once before updates occur.
@@ -164,7 +178,7 @@ public class QLearningAI extends AI {
             return;
         }
 
-        Iterator<Tuple<Integer, Integer, FastArrayList<Move>>> queueIterator = moveHistory.iterator();
+        Iterator<Tuple<Integer, Integer, Integer>> queueIterator = moveHistory.iterator();
 
         if(!queueIterator.hasNext())
         {
@@ -180,18 +194,18 @@ public class QLearningAI extends AI {
         // As we are effectively stepping backwards through the queue, we begin with the most recent moves
         // and then update the move before it.
         //
-        Tuple<Integer, Integer, FastArrayList<Move>> currentMove = queueIterator.next();
+        Tuple<Integer, Integer, Integer> currentMove = queueIterator.next();
         int currentBoardHashcode = currentMove.getItem1();
-        FastArrayList<Move> currentLegalMoves = currentMove.getItem3();
+        int currentNumLegalMoves = currentMove.getItem3();
 
         while (queueIterator.hasNext()) {
             // Decode the current node from the queue.
-            final Tuple<Integer, Integer, FastArrayList<Move>> previousMove = queueIterator.next();
+            final Tuple<Integer, Integer, Integer> previousMove = queueIterator.next();
             final int previousBoardHashcode = previousMove.getItem1();
-            final int previousMoveChoice = previousMove.getItem2();
-            final FastArrayList<Move> previousLegalMoves = previousMove.getItem3();
+            final int previousMoveChoice    = previousMove.getItem2();
+            final int previousNumLegalMoves    = previousMove.getItem3();
 
-            final double[] currentQValuesArray = getQValues(currentLegalMoves, currentBoardHashcode);
+            final double[] currentQValuesArray = getQValues(currentBoardHashcode, currentNumLegalMoves);
 
             // Find the optimal Q value of the current step. This will be used to update the Q value
             // of the previous state.
@@ -200,9 +214,10 @@ public class QLearningAI extends AI {
             //
             // Perform the Q-learning update.
             //
-            double[] previousQValuesArray = getQValues(previousLegalMoves, previousBoardHashcode);
+            double[] previousQValuesArray = getQValues(previousBoardHashcode, previousNumLegalMoves);
             final double initialQValue = previousQValuesArray[previousMoveChoice];
-            final double updatedQValue = initialQValue + this.alpha * (reward + this.gamma * maxCurrentQValue - initialQValue);
+//            final double updatedQValue = initialQValue + this.alpha * (reward + this.gamma * maxCurrentQValue - initialQValue);
+            final double updatedQValue = (1 - this.alpha) * initialQValue + this.alpha * (reward + this.gamma * maxCurrentQValue);
 
             // Update the array of previous Q Values, for memory efficiency.
             previousQValuesArray[previousMoveChoice] = updatedQValue;
@@ -215,7 +230,7 @@ public class QLearningAI extends AI {
 
             // Update the current parameters.
             currentBoardHashcode = previousBoardHashcode;
-            currentLegalMoves = previousLegalMoves;
+            currentNumLegalMoves = previousNumLegalMoves;
         }
 
         // Reset the move history.
@@ -223,16 +238,20 @@ public class QLearningAI extends AI {
     }
 
 
-    public double[] getQValues(final FastArrayList<Move> legalMoves, final int boardHashCode) {
+    public double[] getQValues(final int boardHashCode, final int numLegalMoves) {
         final double[] qValues;
 
         if (Q == null) throw new AssertionError("Error: Q must be initialized. ");
 
         if (!Q.containsKey(boardHashCode)) {
-            qValues = new double[legalMoves.size()];
+            qValues = new double[numLegalMoves];
             Q.put(boardHashCode, qValues);
         } else {
             qValues = Q.get(boardHashCode);
+
+
+            assert qValues != null;
+            assert qValues.length == numLegalMoves;
         }
 
         return qValues;
@@ -244,7 +263,7 @@ public class QLearningAI extends AI {
      * @param array the list of doubles.
      * @return the largest element of the array.
      */
-    public double max(double[] array) {
+    public double max(final double[] array) {
         if (array == null) throw new AssertionError("Error: array must not be null.");
 
         double maxValue = -(Double.MAX_VALUE - 1);
@@ -261,7 +280,7 @@ public class QLearningAI extends AI {
      * @param array the list of doubles.
      * @return the index of the largest element.
      */
-    public int argmax(double[] array) {
+    public int argmax(final double[] array) {
 
         if (array == null) throw new AssertionError("Error: array must not be null.");
 
@@ -278,6 +297,22 @@ public class QLearningAI extends AI {
 
     public ConcurrentHashMap<Integer, double[]> getQ() {
         return Q;
+    }
+
+    @Override
+    public boolean supportsGame(final Game game) {
+        return game.isAlternatingMoveGame();
+    }
+
+    @Override
+    public void closeAI() {
+        super.closeAI();
+        Q = null;
+        moveHistory = null;
+    }
+
+    public void setEpsilon(double eps) {
+        this.epsilon = eps;
     }
 
 }
