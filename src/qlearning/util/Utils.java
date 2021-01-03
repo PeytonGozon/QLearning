@@ -14,13 +14,14 @@ public class Utils {
 
     /**
      * Requires 1-9 players.
-     * @param context
-     * @return
+     * @param context the current episode's context.
+     * @return a (unique) identifier for the board.
      */
     public static int boardToHashcode(final Context context) {
         final Board currentBoard = context.board();
         final Trial currentTrial = context.trial();
         final int numSites = currentBoard.numSites();
+        // double the length of the number of legal sites, in an attempt to make a unique hashcode.
         Integer[] initialBoard = new Integer[numSites];
         Arrays.fill(initialBoard, 0);
 
