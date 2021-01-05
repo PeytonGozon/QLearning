@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class Utils {
 
     /**
-     * Requires 1-9 players.
+     * Converts a board state into a unique hashcode. Requires 1-9 players.
      * @param context the current episode's context.
      * @return a (unique) identifier for the board.
      */
@@ -22,12 +22,13 @@ public class Utils {
         final Board currentBoard = context.board();
         final Trial currentTrial = context.trial();
         final int numSites = currentBoard.numSites();
-        // double the length of the number of legal sites, in an attempt to make a unique hashcode.
+        // double the length of the number of legal sites to ensure that Arrays.deepHashCode results in a
+        // unique hashcode for a reasonable board size.
         Integer[] initialBoard = new Integer[2*numSites];
         Arrays.fill(initialBoard, 0);
 
+        // Encode the board into the first half.
         Iterator<Move> iterator = currentTrial.reverseMoveIterator();
-
         while (iterator.hasNext()) {
             Move m = iterator.next();
             int where = m.to();
@@ -37,13 +38,22 @@ public class Utils {
                 initialBoard[where] = playerID;
         }
 
+        // Fill the second half of the array with less trivial numbers to better ensure the uniqueness
+        // of the hashcode.
         for(int i = 0; i < numSites; i++)
             initialBoard[i + numSites] = 331319 * initialBoard[i];
 
-//        return (new String(initialBoard)).hashCode();
+        // Utilize the deepHashCode to determine a unique hash code for an array of integers to be independent of
+        // their location in memory.
         return Arrays.deepHashCode(initialBoard);
     }
 
+    /**
+     * Given the underlying Q factors of a Q-learning AI, save it uniquely to a file.
+     * @param fileName The name and extension of the AI, which will be stored in "/resources/AI/". .
+     * @param Q The Bidirectional Q map for a given Q-Learning AI.
+     * @throws IOException if unable to save the Q-factors to the given file.
+     */
     public static void saveAI(final String fileName, final BiMap<Integer, double[]> Q)
         throws IOException
     {
@@ -56,6 +66,11 @@ public class Utils {
         }
     }
 
+    /**
+     * Loads the Q-factors of a Q-learning AI from a given file.
+     * @param fileName The name and extension of the AI loaded from "/resources/AI/".
+     * @return The stored BiDirectional map.
+     */
     public static BiMap<Integer, double[]> loadAI(final String fileName) {
         BiMap<Integer, double[]> Q = null;
 
@@ -73,6 +88,9 @@ public class Utils {
         return Q;
     }
 
+    /**
+     * A helper function for determining how many digits long a number is, which is used for printing.
+     */
     public static int widthOfNumber(final int num) {
         int width = 0;
         int temp = num;

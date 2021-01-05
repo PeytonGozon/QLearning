@@ -1,8 +1,8 @@
-(game "Tic-Tac-Toe"
+(game "Tic-Tac-Toe7"
     (players 2)
     (equipment
         {
-            (board (square 5))
+            (board (square 7))
             (piece "Cross" P1)
             (piece "Disc" P2)
         }

@@ -13,6 +13,7 @@ import util.Move;
 
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ThreadLocalRandom;
@@ -30,7 +31,6 @@ public class QLearningAI extends AI {
     private final boolean learn;
 
     // The underlying Q table.
-//    private volatile ConcurrentHashMap<Integer, double[]> Q = null;
     private volatile BiMap<Integer, double[]> Q = null;
     private volatile BiMap<Integer, double[]> backupQ = null;
 
@@ -39,6 +39,10 @@ public class QLearningAI extends AI {
     // Storage order: board hashcode, the move choice made, and the number of legal moves at the time.
     private volatile LinkedBlockingDeque<Tuple<Integer, Integer, Integer>> moveHistory = null;
 
+    /**
+     * A defualt constructor used when loading this AI From the Ludii platform. This requires a file
+     * "resources/AIs/Q-AI-0 0 1.bin" in to exist relative to the jar.
+     */
     public QLearningAI() {
         this(0.01, 0.80, 0, "Q-AI-0 0 1.bin", false);
     }
@@ -83,15 +87,16 @@ public class QLearningAI extends AI {
             Q = Utils.loadAI(modelName);
     }
 
+    /**
+     * initAI is a default method in the base.AI class that should be called prior to the AI being trained.
+     * @param game the Game object.
+     * @param playerID the unique ID assigned to this AI
+     */
     @Override
     public void initAI(final Game game, final int playerID) {
         this.player = playerID;
 
-        if (backupQ == null) {
-            Q = HashBiMap.create();
-        } else {
-            this.Q = this.backupQ;
-        }
+        this.Q = Objects.requireNonNullElseGet(backupQ, HashBiMap::create);
         if(moveHistory == null)
             moveHistory = new LinkedBlockingDeque<>();
     }
@@ -103,18 +108,18 @@ public class QLearningAI extends AI {
                              final int maxIterations,
                              final int maxDepth) {
 
-        // Deep copy the allowed moves.
+        // Obtain a set of legal moves
         final @NotNull FastArrayList<Move> legalMoves = game.moves(context).moves();
 
         // Pre-emptively obtain a legal random move.
         final int numLegalMoves = legalMoves.size();
-
         final int randomLegalMove = ThreadLocalRandom.current().nextInt(numLegalMoves);
 
         if (randomLegalMove >= numLegalMoves)
-            throw new AssertionError("Error: random legal move " + randomLegalMove + " is greater than the total number of possible legal moves " + numLegalMoves);
+            throw new AssertionError("Error: random legal move " + randomLegalMove +
+                    " is greater than the total number of possible legal moves " + numLegalMoves);
 
-        // Determine the board's hash code
+        // Determine the board's hash code to create a unique identifier.
         final int boardHashCode = Utils.boardToHashcode(context);
 
         // The final move we choose to make

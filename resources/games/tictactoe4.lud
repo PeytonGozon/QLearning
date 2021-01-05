@@ -2,13 +2,13 @@
     (players 2)
     (equipment
         {
-            (board (square 5))
+            (board (square 4))
             (piece "Cross" P1)
             (piece "Disc" P2)
         }
     )
     (rules
         (play (move Add (to (sites Empty))))
-        (end (if (is Line 5) (result Mover Win)))
+        (end (if (is Line 3) (result Mover Win)))
     )
 )

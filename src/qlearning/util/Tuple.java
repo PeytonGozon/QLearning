@@ -24,4 +24,8 @@ public class Tuple <K, V, E> {
         return element;
     }
 
+    public String toString() {
+        return "(" + key.toString() + ", " + value.toString() + ", " + element.toString() + ")";
+    }
+
 }
