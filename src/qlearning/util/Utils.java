@@ -1,5 +1,6 @@
 package qlearning.util;
 
+import com.google.common.collect.BiMap;
 import game.equipment.container.board.Board;
 import util.Context;
 import util.Move;
@@ -22,7 +23,7 @@ public class Utils {
         final Trial currentTrial = context.trial();
         final int numSites = currentBoard.numSites();
         // double the length of the number of legal sites, in an attempt to make a unique hashcode.
-        Integer[] initialBoard = new Integer[numSites];
+        Integer[] initialBoard = new Integer[2*numSites];
         Arrays.fill(initialBoard, 0);
 
         Iterator<Move> iterator = currentTrial.reverseMoveIterator();
@@ -36,11 +37,14 @@ public class Utils {
                 initialBoard[where] = playerID;
         }
 
+        for(int i = 0; i < numSites; i++)
+            initialBoard[i + numSites] = 331319 * initialBoard[i];
+
 //        return (new String(initialBoard)).hashCode();
         return Arrays.deepHashCode(initialBoard);
     }
 
-    public static void saveAI(final String fileName, final ConcurrentHashMap<Integer, double[]> Q)
+    public static void saveAI(final String fileName, final BiMap<Integer, double[]> Q)
         throws IOException
     {
         final String pathName = "resources/AIs/" + fileName;
@@ -52,15 +56,15 @@ public class Utils {
         }
     }
 
-    public static ConcurrentHashMap<Integer, double[]> loadAI(final String fileName) {
-        ConcurrentHashMap<Integer, double[]> Q = null;
+    public static BiMap<Integer, double[]> loadAI(final String fileName) {
+        BiMap<Integer, double[]> Q = null;
 
         final String pathName = "resources/AIs/" + fileName;
 
         try {
             FileInputStream fis = new FileInputStream(pathName);
             ObjectInputStream in = new ObjectInputStream(fis);
-            Q = (ConcurrentHashMap<Integer, double[]>)in.readObject();
+            Q = (BiMap<Integer, double[]>)in.readObject();
         } catch (IOException | ClassNotFoundException ex) {
             System.err.println("Error: Could not load Q from " + pathName + ". Aborting.");
             ex.printStackTrace();
@@ -72,9 +76,9 @@ public class Utils {
     public static int widthOfNumber(final int num) {
         int width = 0;
         int temp = num;
-        while(temp / 10 > 0) {
+        while (temp / 10 > 0) {
             width++;
-            temp /=10;
+            temp /= 10;
         }
         return width;
     }

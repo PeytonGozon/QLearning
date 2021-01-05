@@ -1,5 +1,6 @@
 package qlearning.learning;
 
+import com.google.common.collect.BiMap;
 import game.Game;
 import qlearning.AI.QLearningAI;
 import qlearning.util.Utils;
@@ -13,6 +14,7 @@ import utils.RandomAI;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 public class EpisodicGamePlayer {
 
@@ -33,10 +35,16 @@ public class EpisodicGamePlayer {
     private final String AIName;
     private final int numPlayers;
     private int numTotalGames = 0, numAI1Wins = 0, numAI2Wins = 0, numDraws = 0;
-
+    final String gameLocation;
 
     public EpisodicGamePlayer(final String gameLocation, final String AIName) {
-        this.game = GameLoader.loadGameFromFile(new File(gameLocation));
+        this.gameLocation = gameLocation;
+        if (gameLocation.equals("Hex.lud")) {
+            final List<String> options = Arrays.asList("Board Size/3x3");
+            this.game = GameLoader.loadGameFromName("Hex.lud", options);
+        } else {
+            this.game = GameLoader.loadGameFromFile(new File(gameLocation));
+        }
         this.AIName = AIName;
         this.numPlayers = game.players().count();
     }
@@ -48,14 +56,19 @@ public class EpisodicGamePlayer {
      * @param alpha the learning rate for the QLearningAI.
      * @param gamma the future reward discount rate for the QLearningAI.
      * @param epsilon the probability of taking a random action for the QLearningAI.
+     * @return the number of wins vs the random AI for this training session.
      */
-    public void performTrainingVSRandomAI(final int numEpisodes, final boolean switchSidesEachEpisode,
-                                          final double alpha, final double gamma, final double epsilon) {
+    public double[] performTrainingVSRandomAI(final int numEpisodes, final boolean switchSidesEachEpisode,
+                                          final double alpha, final double gamma, final double epsilon,
+                                           final boolean outputTrainingData, final int numTimesReport) {
         // Reset the variables for stat tracking.
         numTotalGames = 0;
         numAI1Wins = 0;
         numAI2Wins = 0;
         numDraws = 0;
+
+        double[] winPercentage = new double[numTimesReport+1];
+        int reportIndex = 0;
 
         // Load the AIs
         final ArrayList<AI> ais = loadAIs("QLearningAI", "Random", alpha, gamma, epsilon);
@@ -76,28 +89,21 @@ public class EpisodicGamePlayer {
         for(int episode = 0; episode < numEpisodes; episode++) {
 
             // TEST CODE FOR DYNAMICALLY DECREASING EPS
-            int l = 100_000;
+            int l = (int)(numEpisodes * 0.75);
             if (episode <= l) {
                 double b = 0;
                 double a = 0.5;
                 double ratio = episode / (double) l;
                 double eps = a * (Math.cos(0.5 * ratio * Math.PI)) + b;
                 qAI.setEpsilon(eps);
-            } else if(episode > l) {
+            } else {
                 qAI.setEpsilon(0);
             }
-
             // END TEST CODE FOR DYNAMICALLY DECREASING EPS
 
 
-            if ((numEpisodes > 10) && (episode % (numEpisodes / 10)) == 0) {
-//                System.out.println(String.format("Training Episode #%" + maxWidth + "d  vs Random AI", episode));
-//                System.out.println("\tAI1: " + numAI1Wins + "/" + numTotalGames + " = " + 100.0*numAI1Wins/numTotalGames+"%.");
-//                System.out.println("\tAI2: " + numAI2Wins + "/" + numTotalGames + " = " + 100.0*numAI2Wins/numTotalGames+"%.");
-//                System.out.println("\tDraws: " + numDraws + "/" + numTotalGames + " = " + 100.0*numDraws/numTotalGames+"%.");
-            }
 
-            final double[] ranking = performOneEpisode(ais, trial, context);
+            final double[] ranking = performOneEpisode(ais, game, trial, context);
 
             rewardAIs(context, ais, ranking);
 
@@ -109,30 +115,44 @@ public class EpisodicGamePlayer {
             }
 
             numTotalGames++;
+
+            // Handle tracking the number of wins.
+            if (((numEpisodes > numTimesReport) && (episode % (numEpisodes / numTimesReport)) == 0 && (episode != 0)) || (episode == 500)) {
+                System.out.println(String.format("Training Episode #%" + (maxWidth+1) + "d  vs Random AI", episode));
+                System.out.println("\tAI1: " + numAI1Wins + "/" + numTotalGames + " = " + 100.0*numAI1Wins/numTotalGames+"%.");
+                System.out.println("\tAI2: " + numAI2Wins + "/" + numTotalGames + " = " + 100.0*numAI2Wins/numTotalGames+"%.");
+                System.out.println("\tDraws: " + numDraws + "/" + numTotalGames + " = " + 100.0*numDraws/numTotalGames+"%.");
+                winPercentage[reportIndex] = (double) numAI1Wins / numTotalGames;
+                reportIndex++;
+            }
         }
 
         System.out.println();
+        System.out.println("Summary");
         System.out.println("AI1: " + numAI1Wins + "/" + numTotalGames + " = " + 100.0*numAI1Wins/numTotalGames+"%.");
         System.out.println("AI2: " + numAI2Wins + "/" + numTotalGames + " = " + 100.0*numAI2Wins/numTotalGames+"%.");
         System.out.println("Draws: " + numDraws + "/" + numTotalGames + " = " + 100.0*numDraws/numTotalGames+"%.");
         System.out.println();
 
-
+        if (reportIndex < winPercentage.length)
+            winPercentage[reportIndex] = (double) numAI1Wins / numTotalGames;
 
         try {
             Utils.saveAI(AIName + ".bin", qAI.getQ());
         } catch (Exception e) {
             System.err.println("Error: Cannot save the AI.");
         }
+
+        return winPercentage;
     }
 
-    private double[] performOneEpisode(final ArrayList<AI> ais, final Trial trial, final Context context) {
+    private double[] performOneEpisode(final ArrayList<AI> ais, final Game local_game, final Trial trial, final Context context) {
         // Start the game
-        game.start(context);
+        local_game.start(context);
 
         // Initialize the AIs
         for(int p = 1; p <= this.numPlayers; p++)
-            ais.get(p).initAI(game, p);
+            ais.get(p).initAI(local_game, p);
 
         final Model model = context.model();
 

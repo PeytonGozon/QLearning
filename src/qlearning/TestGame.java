@@ -93,12 +93,12 @@ public class TestGame {
         String AIName = "Q-Amazons-0-0-1.bin";
         System.out.println("Saving AI to: " + AIName);
 
-        try {
-            Utils.saveAI(AIName, qLearningAI.getQ());
-        } catch (IOException e) {
-            System.out.println("Error: Cannot load AI named: " + AIName);
-            e.printStackTrace();
-        }
+//        try {
+//            Utils.saveAI(AIName, qLearningAI.getQ());
+//        } catch (IOException e) {
+//            System.out.println("Error: Cannot load AI named: " + AIName);
+//            e.printStackTrace();
+//        }
     }
 
     public static void main(String[] args) {

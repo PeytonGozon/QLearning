@@ -1,5 +1,7 @@
 package qlearning.AI;
 
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
 import game.Game;
 import main.collections.FastArrayList;
 import org.jetbrains.annotations.NotNull;
@@ -28,7 +30,9 @@ public class QLearningAI extends AI {
     private final boolean learn;
 
     // The underlying Q table.
-    private volatile ConcurrentHashMap<Integer, double[]> Q = null;
+//    private volatile ConcurrentHashMap<Integer, double[]> Q = null;
+    private volatile BiMap<Integer, double[]> Q = null;
+    private volatile BiMap<Integer, double[]> backupQ = null;
 
     // Move History (for this episode)
     // Stores a list of Board Hashes, Move Made.
@@ -79,23 +83,15 @@ public class QLearningAI extends AI {
             Q = Utils.loadAI(modelName);
     }
 
-    /**
-     * Constructor (for loading a model without future training)
-     * @param alpha the learning rate of the model
-     * @param gamma the future reward discount rate
-     * @param epsilon the probability the model takes a random move via an epsilon-greedy policy.
-     * @param modelName the name of the model to load, located in resources/AIs/modelName.
-     */
-    public QLearningAI(double alpha, double gamma, double epsilon, String modelName) {
-        this(alpha, gamma, epsilon, modelName,false);
-    }
-
     @Override
     public void initAI(final Game game, final int playerID) {
         this.player = playerID;
 
-        if (Q == null)
-            Q = new ConcurrentHashMap<>();
+        if (backupQ == null) {
+            Q = HashBiMap.create();
+        } else {
+            this.Q = this.backupQ;
+        }
         if(moveHistory == null)
             moveHistory = new LinkedBlockingDeque<>();
     }
@@ -140,14 +136,7 @@ public class QLearningAI extends AI {
                 throw new AssertionError("Error: the Q values array was empty. Aborting.");
 
             // Find the arg max Q value. The maximum value's index is our optimal move choice.
-            final int maxQIndex = argmax(QValues);
-
-            // FIXME: this should not be needed..? the argmax would only return -1 if the array is empty, and I just asserted it to not be.
-            if(maxQIndex == -1) {
-                System.out.println("maxQIndex: -1" + Arrays.toString(QValues));
-            }
-
-            moveChoice = maxQIndex;
+            moveChoice = argmax(QValues);
         }
 
         // Finally, return the optimal move, as defined by the policy.
@@ -158,7 +147,8 @@ public class QLearningAI extends AI {
 //        assert moveChoice < legalMoves.size();
 
         // Put the moves in backwards order to the Queue, so that it is in FILO order.
-        moveHistory.addFirst(new Tuple<>(boardHashCode, moveChoice, numLegalMoves));
+        if (this.learn)
+            moveHistory.addFirst(new Tuple<>(boardHashCode, moveChoice, numLegalMoves));
 
         return selectedMove;
     }
@@ -220,11 +210,7 @@ public class QLearningAI extends AI {
             //
             double[] previousQValuesArray = getQValues(previousBoardHashcode, previousNumLegalMoves);
             final double initialQValue = previousQValuesArray[previousMoveChoice];
-//            final double updatedQValue = initialQValue + this.alpha * (reward + this.gamma * maxCurrentQValue - initialQValue);
             final double updatedQValue = (1 - this.alpha) * initialQValue + this.alpha * (reward + this.gamma * maxCurrentQValue);
-
-            if(previousMoveChoice >= previousQValuesArray.length)
-                throw new AssertionError("Error: the previous move choice is larger than the set of previous legal move choices. Aborting.");
 
             // Update the array of previous Q Values, for memory efficiency.
             previousQValuesArray[previousMoveChoice] = updatedQValue;
@@ -255,7 +241,7 @@ public class QLearningAI extends AI {
      * @return a double[] containing the Q values associated with the current board state.
      */
     public double[] getQValues(final int boardHashCode, final int numLegalMoves) {
-        final double[] qValues;
+        double[] qValues;
 
         if (Q == null) throw new AssertionError("Error: Q must be initialized. ");
 
@@ -267,8 +253,10 @@ public class QLearningAI extends AI {
 
             if (qValues == null) throw new AssertionError("Error: retrieved Q values are null, despite Q containing its key.");
             if (qValues.length != numLegalMoves) {
-                 // FIXME: is this caused by collision a collision..?
-                throw new AssertionError("Error: retrieved Q values do not have the same length as the set of legal moves. ");
+                double[] newValues = new double[numLegalMoves];
+                System.arraycopy(qValues, 0, newValues, 0, Math.min(newValues.length, qValues.length));
+                qValues = newValues;
+                Q.put(boardHashCode, qValues);
             }
         }
 
@@ -314,7 +302,7 @@ public class QLearningAI extends AI {
         return argMax;
     }
 
-    public ConcurrentHashMap<Integer, double[]> getQ() {
+    public BiMap<Integer, double[]> getQ() {
         if (Q == null) throw new AssertionError("Error: Attempting to access Q, but Q is null.");
         return Q;
     }
