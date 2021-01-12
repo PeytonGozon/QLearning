@@ -9,7 +9,7 @@ NUM_EPISODES = 200_000
 FIRST_EPISODE = 500
 FULL_EXPLOIT_RATIO = 0.75
 
-GAME_NAME = 'Connect 4'
+GAME_NAME = 'Tic Tac Toe'
 
 X_AXIS = "Episode"
 Y_AXIS = "Win Rate (%)"
@@ -40,7 +40,7 @@ file_name_to_label = {
 }
 
 # for file_name in ['tictactoe.csv', 'tictactoe4.csv', 'tictactoe5.csv']:
-data = pd.read_csv('connect4.csv')
+data = pd.read_csv('tictactoe3x3.csv')
 data.head()
 
 # Perform summary statistics

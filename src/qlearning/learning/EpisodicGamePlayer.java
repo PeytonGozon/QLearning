@@ -60,7 +60,8 @@ public class EpisodicGamePlayer {
      */
     public double[] performTrainingVSRandomAI(final int numEpisodes, final boolean switchSidesEachEpisode,
                                           final double alpha, final double gamma, final double epsilon,
-                                           final boolean outputTrainingData, final int numTimesReport) {
+                                           final boolean outputTrainingData, final int numTimesReport,
+                                              final double percentExplore) {
         // Reset the variables for stat tracking.
         numTotalGames = 0;
         numAI1Wins = 0;
@@ -79,7 +80,7 @@ public class EpisodicGamePlayer {
         final Context context = new Context(game, trial);
 
         // Determine the maximum width when printing the episodes for aesthetic purposes.
-        final int maxWidth = Utils.widthOfNumber(numEpisodes);
+        final int maxWidthOfNumber = Utils.widthOfNumber(numEpisodes);
 
         // Get a reference to the Q-learning AI.
         QLearningAI qAI = null;
@@ -92,12 +93,17 @@ public class EpisodicGamePlayer {
         for(int episode = 0; episode < numEpisodes; episode++) {
 
             // CODE FOR DYNAMICALLY DECREASING EPS
-            int l = (int)(numEpisodes * 0.75);
+            if (qAI == null) {
+                throw new NullPointerException("The Q-Learning AI is null. Aborting.");
+            }
+
+            // Explore for 75% of the games.
+            final int l = (int)(numEpisodes * percentExplore);
             if (episode <= l) {
-                double b = 0;
-                double a = 0.5;
-                double ratio = episode / (double) l;
-                double eps = a * (Math.cos(0.5 * ratio * Math.PI)) + b;
+                final double b = 0;
+                final double a = 0.5;
+                final double ratio = episode / (double) l;
+                final double eps = a * (Math.cos(0.5 * ratio * Math.PI)) + b;
                 qAI.setEpsilon(eps);
             } else {
                 qAI.setEpsilon(0);
@@ -120,8 +126,9 @@ public class EpisodicGamePlayer {
             numTotalGames++;
 
             // Handle tracking the number of wins.
-            if (((numEpisodes > numTimesReport) && (episode % (numEpisodes / numTimesReport)) == 0 && (episode != 0)) || (episode == 500)) {
-                System.out.println(String.format("Training Episode #%" + (maxWidth+1) + "d  vs Random AI", episode));
+            if (((numEpisodes > numTimesReport) && (episode % (numEpisodes / numTimesReport)) == 0 && (episode != 0))
+                    || (episode == 500)) {
+                System.out.println(String.format("Training Episode #%" + (maxWidthOfNumber+1) + "d  vs Random AI", episode));
                 System.out.println("\tAI1: " + numAI1Wins + "/" + numTotalGames + " = " + 100.0*numAI1Wins/numTotalGames+"%.");
                 System.out.println("\tAI2: " + numAI2Wins + "/" + numTotalGames + " = " + 100.0*numAI2Wins/numTotalGames+"%.");
                 System.out.println("\tDraws: " + numDraws + "/" + numTotalGames + " = " + 100.0*numDraws/numTotalGames+"%.");

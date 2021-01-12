@@ -257,12 +257,12 @@ public class QLearningAI extends AI {
             qValues = Q.get(boardHashCode);
 
             if (qValues == null) throw new AssertionError("Error: retrieved Q values are null, despite Q containing its key.");
-            if (qValues.length != numLegalMoves) {
-                double[] newValues = new double[numLegalMoves];
-                System.arraycopy(qValues, 0, newValues, 0, Math.min(newValues.length, qValues.length));
-                qValues = newValues;
-                Q.put(boardHashCode, qValues);
-            }
+//            if (qValues.length != numLegalMoves) {
+//                double[] newValues = new double[numLegalMoves];
+//                System.arraycopy(qValues, 0, newValues, 0, Math.min(newValues.length, qValues.length));
+//                qValues = newValues;
+//                Q.put(boardHashCode, qValues);
+//            }
         }
 
         return qValues;
