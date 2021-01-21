@@ -15,30 +15,38 @@ public class Main {
 
     public static void main(String[] args) {
 
+        // the Q-learning AI model parameters. If usingDynamicEps is false, then epsilon is just a+b.
+        final double alpha = 0.1;  // the learning rate.
+        final double gamma = 0.9;  // the discounted future reward ratio.
+        final double a = 0.5;      // a+b is the upper bound of the epsilon-greedy policy parameter.
+        final double b = 0;        // Lower bound for the epsilon-greedy policy parameter.
+        final int m = 45_000;      // The number of episodes during each trial.
+        final int l = 30_000;      // Which episode to stop exploring.
+        final boolean usingDynamicEps = true;
         // The number of times to perform training and evaluating the model.
-        final int NUM_BATCHES = 5;
+        final int NUM_BATCHES = 3;
         // How many times to tick marks to put into the data for the purpose of creating visualizations.
         final int NUM_TIMES_REPORT = 10;
-        // The number of episodes during each trial.
-        final int NUM_EPISODES = (int) 7.5e4;
+        final int FIRST_REPORT_EPISODE = 5_000;
+        // The number of episodes during each trial. This is `m`.
         // Which game to play
-        final String gameName = "Hex";
-        // the Q-learning AI model parameters
-        final double alpha = 0.1;
-        final double gamma = 1;
-        final double lPercent = 0.60;
+        final String gameName = "tictactoe";
+
 
 
         // The name of the AI and corresponding CSV file containing information
-        final String AIName = gameName + "-" + NUM_EPISODES + "-alpha" + alpha + "-gamma" +
-                gamma + "-" + System.currentTimeMillis();
+        final String AIName = gameName + "-" + m + "-alpha" + alpha + "-gamma" +
+                gamma + "-a" + a + "-b" + b + "-l" + l;
         final String csvName = "CSVs/" + AIName + ".csv";
 
-        String gameLocation = gameName + ".lud";
-        for (String name : FileHandling.listGames())
-            if (name.equals(gameName+".lud")) {
-                gameLocation = name;
+        String gameLocation = "resources/games/" + gameName + ".lud";
+        for (String name : FileHandling.listGames()) {
+            final String adjustedName = gameName + ".lud";
+            if (name.contains(adjustedName)) {
+                gameLocation = adjustedName;
+                break;
             }
+        }
 
         final Path csvFilePath = Paths.get(csvName);
 
@@ -51,7 +59,7 @@ public class Main {
             StringBuilder headers = new StringBuilder();
             headers.append("Batch 500,");
             for(int i = 1; i <= NUM_TIMES_REPORT; i++)
-                headers.append("Batch ").append(i * (NUM_EPISODES / NUM_TIMES_REPORT)).append(",");
+                headers.append("Batch ").append(i * (m / NUM_TIMES_REPORT)).append(",");
 
             List<String> contents = Collections.singletonList(headers.toString());
             Files.write(csvFilePath, contents, StandardCharsets.UTF_8, StandardOpenOption.CREATE);
@@ -64,8 +72,9 @@ public class Main {
         StringBuilder builder = new StringBuilder();
         for (int i = 0; i < NUM_BATCHES; i++) {
             // Create a model that plays for NUM_EPISODES, and has alpha = 0.1, gamma = 0.9, and epsilon_0 = 0.50.
-            double[] winPercentage = gamePlayer.performTrainingVSRandomAI(NUM_EPISODES, false,
-                    alpha, gamma, 0.50, true, NUM_TIMES_REPORT, lPercent);
+            double[] winPercentage = gamePlayer.performTrainingVSRandomAI(m, l,
+                    alpha, gamma, a+b, a, b, NUM_TIMES_REPORT, false, usingDynamicEps,
+                    FIRST_REPORT_EPISODE);
 
             for (double v : winPercentage) {
                 builder.append(v).append(",");

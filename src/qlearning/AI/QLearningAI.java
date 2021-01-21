@@ -5,17 +5,12 @@ import com.google.common.collect.HashBiMap;
 import game.Game;
 import main.collections.FastArrayList;
 import org.jetbrains.annotations.NotNull;
-import qlearning.util.Tuple;
 import qlearning.util.Utils;
 import util.AI;
 import util.Context;
 import util.Move;
 
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class QLearningAI extends AI {
@@ -32,15 +27,14 @@ public class QLearningAI extends AI {
 
     // The underlying Q table.
     private volatile BiMap<Integer, double[]> Q = null;
-    private volatile BiMap<Integer, double[]> backupQ = null;
 
     // Move History (for this episode)
     // Stores a list of Board Hashes, Move Made.
     // Storage order: board hashcode, the move choice made, and the number of legal moves at the time.
-    private volatile LinkedBlockingDeque<Tuple<Integer, Integer, Integer>> moveHistory = null;
+    private volatile ConcurrentLinkedDeque<int[]> moveHistory = null;
 
     /**
-     * A defualt constructor used when loading this AI From the Ludii platform. This requires a file
+     * A default constructor used when loading this AI From the Ludii platform. This requires a file
      * "resources/AIs/Q-AI-0 0 1.bin" in to exist relative to the jar.
      */
     public QLearningAI() {
@@ -96,9 +90,9 @@ public class QLearningAI extends AI {
     public void initAI(final Game game, final int playerID) {
         this.player = playerID;
 
-        this.Q = Objects.requireNonNullElseGet(backupQ, HashBiMap::create);
+        this.Q = HashBiMap.create();
         if(moveHistory == null)
-            moveHistory = new LinkedBlockingDeque<>();
+            moveHistory = new ConcurrentLinkedDeque<>();
     }
 
     @Override
@@ -152,8 +146,13 @@ public class QLearningAI extends AI {
 //        assert moveChoice < legalMoves.size();
 
         // Put the moves in backwards order to the Queue, so that it is in FILO order.
-        if (this.learn)
-            moveHistory.addFirst(new Tuple<>(boardHashCode, moveChoice, numLegalMoves));
+        if (this.learn) {
+            int[] move = new int[3];
+            move[0] = boardHashCode;
+            move[1] = moveChoice;
+            move[2] = numLegalMoves;
+            moveHistory.add(move);
+        }
 
         return selectedMove;
     }
@@ -182,9 +181,9 @@ public class QLearningAI extends AI {
 
         if (moveHistory.isEmpty()) throw new AssertionError("Error: moveHistory is empty when attempting to update the Q values. Aborting.");
 
-        @NotNull Iterator<Tuple<Integer, Integer, Integer>> queueIterator = moveHistory.iterator();
-
-        if(!queueIterator.hasNext()) throw new AssertionError("Error: moveHistory iterator returns no next nodes when initialized at the beginning. Aborting.");
+//        @NotNull Iterator<int[]> queueIterator = moveHistory.iterator();
+//
+//        if(!queueIterator.hasNext()) throw new AssertionError("Error: moveHistory iterator returns no next nodes when initialized at the beginning. Aborting.");
         //
         // Obtain the first node in the queue (the last state of the game).
         //
@@ -193,16 +192,18 @@ public class QLearningAI extends AI {
         // As we are effectively stepping backwards through the queue, we begin with the most recent moves
         // and then update the move before it.
         //
-        @NotNull Tuple<Integer, Integer, Integer> currentMove = queueIterator.next();
-        int currentBoardHashcode = currentMove.getItem1();
-        int currentNumLegalMoves = currentMove.getItem3();
+        int[] currentMove = moveHistory.pop();
+        if (currentMove.length != 3) throw new AssertionError("Error: expected all moves to be arrays of length 3.");
+        int currentBoardHashcode = currentMove[0];
+        int currentNumLegalMoves = currentMove[2];
 
-        while (queueIterator.hasNext()) {
+        while (!moveHistory.isEmpty()) {
             // Decode the current node from the queue.
-            final @NotNull Tuple<Integer, Integer, Integer> previousMove = queueIterator.next();
-            final int previousBoardHashcode = previousMove.getItem1();
-            final int previousMoveChoice    = previousMove.getItem2();
-            final int previousNumLegalMoves = previousMove.getItem3();
+            final int[] previousMove = moveHistory.pop();
+            if (previousMove.length != 3) throw new AssertionError("Error: expected all moves to be arrays of length 3.");
+            final int previousBoardHashcode = previousMove[0];
+            final int previousMoveChoice    = previousMove[1];
+            final int previousNumLegalMoves = previousMove[2];
 
             final double[] currentQValuesArray = getQValues(currentBoardHashcode, currentNumLegalMoves);
 
@@ -257,19 +258,13 @@ public class QLearningAI extends AI {
             qValues = Q.get(boardHashCode);
 
             if (qValues == null) throw new AssertionError("Error: retrieved Q values are null, despite Q containing its key.");
-//            if (qValues.length != numLegalMoves) {
-//                double[] newValues = new double[numLegalMoves];
-//                System.arraycopy(qValues, 0, newValues, 0, Math.min(newValues.length, qValues.length));
-//                qValues = newValues;
-//                Q.put(boardHashCode, qValues);
-//            }
         }
 
         return qValues;
     }
 
     /**
-     * Returns the largest element within the array. If the array is ewmpty, it returns
+     * Returns the largest element within the array. If the array is empty, it returns
      * the largest negative value a double may contain.
      * @param array the list of doubles.
      * @return the largest element of the array.

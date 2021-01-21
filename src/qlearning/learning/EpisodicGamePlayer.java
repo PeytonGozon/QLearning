@@ -14,6 +14,7 @@ import utils.RandomAI;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 public class EpisodicGamePlayer {
@@ -40,7 +41,7 @@ public class EpisodicGamePlayer {
         this.gameLocation = gameLocation;
         // Note: Hex is loaded differently. This will load Hex with a 3x3 grid, but most sizes up to 19x19 are supported.
         if (gameLocation.equals("Hex.lud")) {
-            final List<String> options = Arrays.asList("Board Size/3x3");
+            final List<String> options = Collections.singletonList("Board Size/3x3");
             this.game = GameLoader.loadGameFromName("Hex.lud", options);
         } else {
             this.game = GameLoader.loadGameFromFile(new File(gameLocation));
@@ -56,12 +57,13 @@ public class EpisodicGamePlayer {
      * @param alpha the learning rate for the QLearningAI.
      * @param gamma the future reward discount rate for the QLearningAI.
      * @param epsilon the probability of taking a random action for the QLearningAI.
+     * @param first_episode_report_num which episode to do the first progress check.
      * @return the number of wins vs the random AI for this training session.
      */
-    public double[] performTrainingVSRandomAI(final int numEpisodes, final boolean switchSidesEachEpisode,
-                                          final double alpha, final double gamma, final double epsilon,
-                                           final boolean outputTrainingData, final int numTimesReport,
-                                              final double percentExplore) {
+    public double[] performTrainingVSRandomAI(final int numEpisodes, final int l, final double alpha,
+                                              final double gamma, final double epsilon, final double a, final double b,
+                                              final int numTimesReport, final boolean switchSidesEachEpisode,
+                                              final boolean usingDynamicEps, final int first_episode_report_num) {
         // Reset the variables for stat tracking.
         numTotalGames = 0;
         numAI1Wins = 0;
@@ -97,15 +99,12 @@ public class EpisodicGamePlayer {
                 throw new NullPointerException("The Q-Learning AI is null. Aborting.");
             }
 
-            // Explore for 75% of the games.
-            final int l = (int)(numEpisodes * percentExplore);
-            if (episode <= l) {
-                final double b = 0;
-                final double a = 0.5;
+            // Explore so long as the episode is <= l. Only update the value of epsilon if using the dynamic epsilon update.
+            if (usingDynamicEps && episode <= l) {
                 final double ratio = episode / (double) l;
                 final double eps = a * (Math.cos(0.5 * ratio * Math.PI)) + b;
                 qAI.setEpsilon(eps);
-            } else {
+            } else if (episode > l) {
                 qAI.setEpsilon(0);
             }
             // END CODE FOR DYNAMICALLY DECREASING EPS
@@ -127,11 +126,15 @@ public class EpisodicGamePlayer {
 
             // Handle tracking the number of wins.
             if (((numEpisodes > numTimesReport) && (episode % (numEpisodes / numTimesReport)) == 0 && (episode != 0))
-                    || (episode == 500)) {
-                System.out.println(String.format("Training Episode #%" + (maxWidthOfNumber+1) + "d  vs Random AI", episode));
-                System.out.println("\tAI1: " + numAI1Wins + "/" + numTotalGames + " = " + 100.0*numAI1Wins/numTotalGames+"%.");
-                System.out.println("\tAI2: " + numAI2Wins + "/" + numTotalGames + " = " + 100.0*numAI2Wins/numTotalGames+"%.");
-                System.out.println("\tDraws: " + numDraws + "/" + numTotalGames + " = " + 100.0*numDraws/numTotalGames+"%.");
+                    || (episode == first_episode_report_num)) {
+                // Note: 10_000 used to give decimals four digits of precision when printed.
+                System.out.printf("Training Episode #%" + (maxWidthOfNumber+1) + "d  vs Random AI%n", episode);
+                System.out.println("\tAI1: " + numAI1Wins + "/" + numTotalGames + " = " +
+                        Math.round(10_000*100.0*numAI1Wins/numTotalGames)/10_000.0+"%.");
+                System.out.println("\tAI2: " + numAI2Wins + "/" + numTotalGames + " = " +
+                        Math.round(10_000*100.0*numAI2Wins/numTotalGames) / 10_000.0 +"%.");
+                System.out.println("\tDraws: " + numDraws + "/" + numTotalGames + " = " +
+                        Math.round(10_000*100.0*numDraws/numTotalGames) / 10_000.0 +"%.");
                 winPercentage[reportIndex] = (double) numAI1Wins / numTotalGames;
                 reportIndex++;
             }
@@ -149,6 +152,7 @@ public class EpisodicGamePlayer {
 
         // Try to save the Q-Learning AI.
         try {
+            if  (qAI == null) throw new NullPointerException("the Q AI must not be null.");
             Utils.saveAI(AIName + ".bin", qAI.getQ());
         } catch (Exception e) {
             System.err.println("Error: Cannot save the AI.");
