@@ -1,6 +1,5 @@
 package qlearning.learning;
 
-import com.google.common.collect.BiMap;
 import game.Game;
 import qlearning.AI.QLearningAI;
 import qlearning.util.Utils;
@@ -13,7 +12,6 @@ import utils.RandomAI;
 
 import java.io.File;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -53,17 +51,17 @@ public class EpisodicGamePlayer {
     /**
      * Trains a QLearningAI vs a RandomAI.
      * @param numEpisodes How many episodes of the game to play in the training session.
-     * @param switchSidesEachEpisode Whether to switch the AIs's order of their turns.
+     * @param switchSidesEachEpisode Whether to switch the AI's order of their turns.
      * @param alpha the learning rate for the QLearningAI.
      * @param gamma the future reward discount rate for the QLearningAI.
      * @param epsilon the probability of taking a random action for the QLearningAI.
-     * @param first_episode_report_num which episode to do the first progress check.
+     * @param report_every how many episodes should occur between each report.
      * @return the number of wins vs the random AI for this training session.
      */
     public double[] performTrainingVSRandomAI(final int numEpisodes, final int l, final double alpha,
                                               final double gamma, final double epsilon, final double a, final double b,
-                                              final int numTimesReport, final boolean switchSidesEachEpisode,
-                                              final boolean usingDynamicEps, final int first_episode_report_num) {
+                                              final int report_every, final boolean switchSidesEachEpisode,
+                                              final boolean usingDynamicEps) {
         // Reset the variables for stat tracking.
         numTotalGames = 0;
         numAI1Wins = 0;
@@ -71,7 +69,7 @@ public class EpisodicGamePlayer {
         numDraws = 0;
 
         // For recording the win percentage of the AI vs the random AI.
-        double[] winPercentage = new double[numTimesReport+1];
+        double[] winPercentage = new double[(numEpisodes / report_every)];
         int reportIndex = 0;
 
         // Load the AIs
@@ -125,8 +123,7 @@ public class EpisodicGamePlayer {
             numTotalGames++;
 
             // Handle tracking the number of wins.
-            if (((numEpisodes > numTimesReport) && (episode % (numEpisodes / numTimesReport)) == 0 && (episode != 0))
-                    || (episode == first_episode_report_num)) {
+            if ((episode % report_every) == 0 && (episode != 0)) {
                 // Note: 10_000 used to give decimals four digits of precision when printed.
                 System.out.printf("Training Episode #%" + (maxWidthOfNumber+1) + "d  vs Random AI%n", episode);
                 System.out.println("\tAI1: " + numAI1Wins + "/" + numTotalGames + " = " +

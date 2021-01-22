@@ -26,8 +26,7 @@ public class Main {
         // The number of times to perform training and evaluating the model.
         final int NUM_BATCHES = 3;
         // How many times to tick marks to put into the data for the purpose of creating visualizations.
-        final int NUM_TIMES_REPORT = 10;
-        final int FIRST_REPORT_EPISODE = 5_000;
+        final int REPORT_EVERY = 3_000;
         // The number of episodes during each trial. This is `m`.
         // Which game to play
         final String gameName = "tictactoe";
@@ -36,7 +35,7 @@ public class Main {
 
         // The name of the AI and corresponding CSV file containing information
         final String AIName = gameName + "-" + m + "-alpha" + alpha + "-gamma" +
-                gamma + "-a" + a + "-b" + b + "-l" + l;
+                gamma + "-a" + a + "-b" + b + "-l" + l + "-usingDynamicEps " + usingDynamicEps;
         final String csvName = "CSVs/" + AIName + ".csv";
 
         String gameLocation = "resources/games/" + gameName + ".lud";
@@ -57,9 +56,8 @@ public class Main {
         // Create the CSV file that stores how well the model has performed and append headers
         try {
             StringBuilder headers = new StringBuilder();
-            headers.append("Batch 500,");
-            for(int i = 1; i <= NUM_TIMES_REPORT; i++)
-                headers.append("Batch ").append(i * (m / NUM_TIMES_REPORT)).append(",");
+            for(int i = 1; i <= (m / REPORT_EVERY); i++)
+                headers.append(i * REPORT_EVERY).append(",");
 
             List<String> contents = Collections.singletonList(headers.toString());
             Files.write(csvFilePath, contents, StandardCharsets.UTF_8, StandardOpenOption.CREATE);
@@ -73,8 +71,7 @@ public class Main {
         for (int i = 0; i < NUM_BATCHES; i++) {
             // Create a model that plays for NUM_EPISODES, and has alpha = 0.1, gamma = 0.9, and epsilon_0 = 0.50.
             double[] winPercentage = gamePlayer.performTrainingVSRandomAI(m, l,
-                    alpha, gamma, a+b, a, b, NUM_TIMES_REPORT, false, usingDynamicEps,
-                    FIRST_REPORT_EPISODE);
+                    alpha, gamma, a+b, a, b, REPORT_EVERY, false, usingDynamicEps);
 
             for (double v : winPercentage) {
                 builder.append(v).append(",");
